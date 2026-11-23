@@ -1,8 +1,8 @@
 import { Router } from "express";
-import { testConverter } from "../contollers/converterController.js";
+import { validateConverter } from "../contollers/converterController.js";
 
 const router = Router();
 
-router.get("/test", testConverter);
+router.post("/validate", validateConverter);
 
-export default router;
+export default router
