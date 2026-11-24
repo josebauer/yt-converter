@@ -5,6 +5,7 @@ import path from "node:path";
 
 import { extractVideoId } from "./mediaService.js";
 import type { OutputFormat } from "./converterService.js";
+import { getPositiveNumber } from "./conversionLimitsService.js";
 
 export async function downloadYouTubeMedia(
   url: string,
@@ -25,6 +26,11 @@ export async function downloadYouTubeMedia(
 
   const outputTemplate = path.join(tempDir, "%(id)s.%(ext)s");
 
+  const maxFileSize = getPositiveNumber(
+    process.env.MAX_FILE_SIZE_MB,
+    200
+  );
+
   const args = [
     "--ignore-config",
     "--encoding",
@@ -32,8 +38,8 @@ export async function downloadYouTubeMedia(
     "--no-playlist",
     "--no-progress",
     "--no-warnings",
-    "--max-filesize",
-    "200M",
+    "--max-filesize", `${maxFileSize}M`,
+    "--match-filter", "!is_live & !is_upcoming",
     "--socket-timeout",
     "30",
     "--retries",

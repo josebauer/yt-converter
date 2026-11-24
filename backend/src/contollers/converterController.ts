@@ -6,8 +6,15 @@ import { convertMedia } from "../services/converterService.js";
 import { getDownloadFile } from "../services/donwloadService.js";
 import { downloadSchema } from "../schemas/converterSchema.js";
 import { downloadYouTubeMedia } from "../services/youtubeService.js";
-import { rm } from "node:fs/promises";
+import { stat, rm } from "node:fs/promises";
 import path from "node:path";
+
+import {
+  tryStartConversion,
+  finishConversion,
+  isDurationAllowed,
+  getPositiveNumber
+} from "../services/conversionLimitsService.js";
 
 const mediaInfoSchema = z.object({
   url: z.url()
@@ -95,11 +102,60 @@ export async function convertVideo(
 
   const { url, format } = result.data;
 
+  if (!tryStartConversion()) {
+    res.status(503).json({
+      success: false,
+      message: "Servidor ocupado. Tente novamente em instantes."
+    });
+    return;
+  }
+
   let sourcePath: string | undefined;
 
   try {
+    const mediaInfo = await getMediaInfo(url);
+    
+    if (mediaInfo.liveBroadcastContent !== "none") {
+      res.status(422).json({
+        success: false,
+        message: "Transmissões ao vivo não são permitidas."
+      });
+      return;
+    }
+
+    if (!isDurationAllowed(mediaInfo.durationInSeconds)) {
+      const maxDuration = getPositiveNumber(
+        process.env.MAX_VIDEO_DURATION_MINUTES,
+        20
+      );
+
+      res.status(422).json({
+        success: false,
+        message: `O vídeo deve possuir no máximo ${maxDuration} minutos.`
+      });
+      return;
+    }
+
+    // Baixar mídia original
     sourcePath = await downloadYouTubeMedia(url, format);
 
+    // Validar tamanho da mídia baixada
+    const sourceStats = await stat(sourcePath);
+
+    const maxSize = getPositiveNumber(
+      process.env.MAX_FILE_SIZE_MB,
+      200
+    ) * 1024 * 1024;
+
+    if (sourceStats.size > maxSize) {
+      res.status(422).json({
+        success: false,
+        message: "O arquivo excede o tamanho máximo permitido."
+      });
+      return;
+    }
+
+    // Converter mídia
     const conversion = await convertMedia(
       sourcePath,
       format
@@ -124,13 +180,17 @@ export async function convertVideo(
       message: "Não foi possível realizar a conversão."
     });
   } finally {
-    if (sourcePath) {
-      await rm(path.dirname(sourcePath), {
-        recursive: true,
-        force: true
-      }).catch((error) => {
-        console.error("Erro ao excluir mídia original:", error);
-      });
+    try {
+      if (sourcePath) {
+        await rm(path.dirname(sourcePath), {
+          recursive: true,
+          force: true
+        });
+      }
+    } catch (error) {
+      console.error("Erro ao excluir mídia original:", error);
+    } finally {
+      finishConversion();
     }
   }
 }

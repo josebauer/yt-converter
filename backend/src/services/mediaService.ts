@@ -1,5 +1,5 @@
-
 import axios from "axios";
+import { parseDuration } from "./conversionLimitsService.js";
 
 interface YouTubeVideo {
   id: string;
@@ -7,6 +7,7 @@ interface YouTubeVideo {
     title: string;
     description: string;
     channelTitle: string;
+    liveBroadcastContent: "none" | "live" | "upcoming";
     thumbnails: {
       high?: {
         url: string;
@@ -32,6 +33,8 @@ export interface MediaInfo {
   channel: string;
   thumbnail: string | null;
   duration: string;
+  durationInSeconds: number;
+  liveBroadcastContent: "none" | "live" | "upcoming";
   url: string;
 }
 
@@ -141,6 +144,8 @@ export async function getMediaInfo(
       video.snippet.thumbnails.medium?.url ??
       null,
     duration: formatDuration(video.contentDetails.duration),
+    durationInSeconds: parseDuration(video.contentDetails.duration),
+    liveBroadcastContent: video.snippet.liveBroadcastContent,
     url: `https://www.youtube.com/watch?v=${video.id}`
   };
 }
