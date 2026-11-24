@@ -10,6 +10,7 @@ import {
   addConversionJob,
   getConversionJob,
   getQueuePosition,
+  getDownloadFilename,
 } from "../services/conversionQueueService.js";
 
 import {
@@ -119,7 +120,7 @@ export async function convertVideo(req: Request, res: Response): Promise<void> {
       return;
     }
 
-    const job = addConversionJob(url, format);
+    const job = addConversionJob(url, format, mediaInfo.title);
 
     if (!job) {
       res.status(503).json({
@@ -177,7 +178,9 @@ export async function downloadVideo(
       return;
     }
 
-    res.download(file.filePath, file.filename, (error) => {
+    const downloadFilename = getDownloadFilename(file.filename) ?? file.filename;
+
+    res.download(file.filePath, downloadFilename, (error) => {
       if (error) {
         console.error("Erro no download:", error);
 
@@ -201,18 +204,13 @@ export async function downloadVideo(
   }
 }
 
-export function getConversionStatus(
-  req: Request,
-  res: Response
-): void {
-  const result = conversionJobSchema.safeParse(
-    req.params
-  );
+export function getConversionStatus(req: Request, res: Response): void {
+  const result = conversionJobSchema.safeParse(req.params);
 
   if (!result.success) {
     res.status(400).json({
       success: false,
-      message: "Identificador inválido."
+      message: "Identificador inválido.",
     });
     return;
   }
@@ -222,7 +220,7 @@ export function getConversionStatus(
   if (!job) {
     res.status(404).json({
       success: false,
-      message: "Conversão não encontrada ou expirada."
+      message: "Conversão não encontrada ou expirada.",
     });
     return;
   }
@@ -241,7 +239,7 @@ export function getConversionStatus(
       startedAt: job.startedAt,
       finishedAt: job.finishedAt,
       result: job.result,
-      error: job.error
-    }
+      error: job.error,
+    },
   });
 }

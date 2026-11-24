@@ -1,16 +1,18 @@
 import { randomUUID } from "node:crypto";
 import { stat, rm } from "node:fs/promises";
-import path from "node:path";
-import type { ConversionJob } from "../types/conversionJob.js";
 import { convertMedia } from "./converterService.js";
-import type { OutputFormat } from "./converterService.js";
 import { downloadYouTubeMedia } from "./youtubeService.js";
+import { sanitizeFilename } from "../types/sanitizeFilename.js";
+import path from "node:path";
 
 import {
   getPositiveNumber,
   tryStartConversion,
   finishConversion,
 } from "./conversionLimitsService.js";
+
+import type { ConversionJob } from "../types/conversionJob.js";
+import type { OutputFormat } from "./converterService.js";
 
 const jobs = new Map<string, ConversionJob>();
 
@@ -19,6 +21,7 @@ const queue: string[] = [];
 export function addConversionJob(
   url: string,
   format: OutputFormat,
+  title: string,
 ): ConversionJob | null {
   const maxQueueSize = Math.floor(
     getPositiveNumber(process.env.MAX_QUEUE_SIZE, 10),
@@ -31,6 +34,7 @@ export function addConversionJob(
   const job: ConversionJob = {
     id: randomUUID(),
     url,
+    title,
     format,
     status: "queued",
     progress: 0,
@@ -125,14 +129,17 @@ async function processJob(job: ConversionJob): Promise<void> {
       throw new Error("O arquivo convertido excede o tamanho máximo.");
     }
 
+    const downloadFilename = `${sanitizeFilename(job.title)}.${job.format}`;
+
     job.result = {
       filename: conversion.filename,
+      downloadFilename,
       downloadUrl: `/api/converter/download/${conversion.filename}`,
     };
 
-    job.progress = 100
+    job.progress = 100;
     job.status = "completed";
-      
+
     console.log(`[Queue] Concluída: ${job.id}`);
   } catch (error) {
     job.status = "failed";
@@ -181,4 +188,19 @@ export function cleanupExpiredJobs(): void {
       console.log(`[Queue] Tarefa expirada: ${id}`);
     }
   }
+}
+
+export function getDownloadFilename(
+  filename: string
+): string | undefined {
+  for (const job of jobs.values()) {
+    if (
+      job.status === "completed" &&
+      job.result?.filename === filename
+    ) {
+      return job.result.downloadFilename;
+    }
+  }
+
+  return undefined;
 }

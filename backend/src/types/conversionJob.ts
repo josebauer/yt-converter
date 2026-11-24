@@ -10,12 +10,14 @@ export type ConversionStatus =
 
 export interface ConversionJobResult {
   filename: string;
+  downloadFilename: string;
   downloadUrl: string;
 }
 
 export interface ConversionJob {
   id: string;
   url: string;
+  title: string;
   format: OutputFormat;
   status: ConversionStatus;
 
