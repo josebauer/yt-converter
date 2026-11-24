@@ -135,6 +135,7 @@ export async function convertVideo(req: Request, res: Response): Promise<void> {
       data: {
         id: job.id,
         status: job.status,
+        progress: job.progress,
         queuePosition: getQueuePosition(job.id),
         statusUrl: `/api/converter/status/${job.id}`,
       },
@@ -234,6 +235,7 @@ export function getConversionStatus(
       id: job.id,
       format: job.format,
       status: job.status,
+      progress: job.progress,
       queuePosition: getQueuePosition(job.id),
       createdAt: job.createdAt,
       startedAt: job.startedAt,

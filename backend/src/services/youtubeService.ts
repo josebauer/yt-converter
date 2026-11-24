@@ -1,15 +1,17 @@
 import { spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { mkdir, rm } from "node:fs/promises";
-import path from "node:path";
-
 import { extractVideoId } from "./mediaService.js";
 import type { OutputFormat } from "./converterService.js";
 import { getPositiveNumber } from "./conversionLimitsService.js";
+import type { ProgressCallback } from "../types/conversionJob.js";
+import { createLineReader } from "../utils/lineReader.js";
+import path from "node:path";
 
 export async function downloadYouTubeMedia(
   url: string,
   format: OutputFormat,
+  onProgress?: ProgressCallback,
 ): Promise<string> {
   const videoId = extractVideoId(url);
 
@@ -26,20 +28,22 @@ export async function downloadYouTubeMedia(
 
   const outputTemplate = path.join(tempDir, "%(id)s.%(ext)s");
 
-  const maxFileSize = getPositiveNumber(
-    process.env.MAX_FILE_SIZE_MB,
-    200
-  );
+  const maxFileSize = getPositiveNumber(process.env.MAX_FILE_SIZE_MB, 200);
 
   const args = [
     "--ignore-config",
     "--encoding",
     "utf-8",
     "--no-playlist",
-    "--no-progress",
+    "--progress",
+    "--newline",
+    "--progress-template",
+    "download:PROGRESS:%(progress._percent_str)s",
     "--no-warnings",
-    "--max-filesize", `${maxFileSize}M`,
-    "--match-filter", "!is_live & !is_upcoming",
+    "--max-filesize",
+    `${maxFileSize}M`,
+    "--match-filter",
+    "!is_live & !is_upcoming",
     "--socket-timeout",
     "30",
     "--retries",
@@ -56,7 +60,7 @@ export async function downloadYouTubeMedia(
     "--merge-output-format",
     "mp4",
     "--print",
-    "after_move:filepath",
+    "after_move:FILEPATH:%(filepath)s",
     "--no-simulate",
     "-o",
     outputTemplate,
@@ -71,28 +75,58 @@ export async function downloadYouTubeMedia(
         timeout: 180000,
       });
 
-      let output = "";
+      let filePath: string | undefined;
       let errorOutput = "";
 
-      ytDlp.stdout.setEncoding("utf8");
+      const handleLine = (line: string) => {
+        if (line.startsWith("PROGRESS:")) {
+          const match = line.match(/PROGRESS:\s*(\d+(?:\.\d+)?)%/);
 
-      ytDlp.stdout.on("data", (data) => {
-        output += data;
+          if (match) {
+            const progress = Number(match[1]);
+
+            if (Number.isFinite(progress)) {
+              onProgress?.(Math.min(100, Math.max(0, progress)));
+            }
+          }
+        }
+
+        if (line.startsWith("FILEPATH:")) {
+          filePath = line.slice("FILEPATH:".length).trim();
+        }
+      };
+
+      const readStdout = createLineReader(handleLine);
+      const readStderr = createLineReader(handleLine);
+
+      ytDlp.stdout.setEncoding("utf8");
+      ytDlp.stderr.setEncoding("utf8");
+
+      ytDlp.stdout.on("data", (data: string) => {
+        readStdout(data);
       });
 
-      ytDlp.stderr.on("data", (data) => {
-        errorOutput = (errorOutput + data.toString()).slice(-4000);
+      ytDlp.stderr.on("data", (data: string) => {
+        readStderr(data);
+
+        errorOutput = (errorOutput + data).slice(-4000);
       });
 
       ytDlp.on("error", reject);
 
-      ytDlp.on("close", (code) => {
-        const filePath = output.trim().split(/\r?\n/).pop();
+      ytDlp.on("close", (code, signal) => {
+        // Processar eventuais linhas restantes
+        readStdout("\n");
+        readStderr("\n");
 
         if (code === 0 && filePath) {
+          onProgress?.(100);
+
           resolve(filePath);
         } else {
-          reject(new Error(`yt-dlp falhou: ${errorOutput}`));
+          reject(
+            new Error(`yt-dlp falhou (${code}, ${signal}): ${errorOutput}`),
+          );
         }
       });
     });

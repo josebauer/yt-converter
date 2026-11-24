@@ -19,6 +19,8 @@ export interface ConversionJob {
   format: OutputFormat;
   status: ConversionStatus;
 
+  progress: number;
+
   createdAt: number;
   startedAt?: number;
   finishedAt?: number;
@@ -26,3 +28,5 @@ export interface ConversionJob {
   result?: ConversionJobResult;
   error?: string;
 }
+
+export type ProgressCallback = (progress: number) => void

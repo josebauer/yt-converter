@@ -33,6 +33,7 @@ export function addConversionJob(
     url,
     format,
     status: "queued",
+    progress: 0,
     createdAt: Date.now(),
   };
 
@@ -86,7 +87,11 @@ async function processJob(job: ConversionJob): Promise<void> {
 
     console.log(`[Queue] Baixando: ${job.id}`);
 
-    sourcePath = await downloadYouTubeMedia(job.url, job.format);
+    sourcePath = await downloadYouTubeMedia(job.url, job.format, (progress) => {
+      const overallProgress = Math.floor(progress * 0.49);
+
+      job.progress = Math.max(job.progress, overallProgress);
+    });
 
     const maxSize =
       getPositiveNumber(process.env.MAX_FILE_SIZE_MB, 200) * 1024 * 1024;
@@ -98,10 +103,19 @@ async function processJob(job: ConversionJob): Promise<void> {
     }
 
     job.status = "converting";
+    job.progress = 50;
 
     console.log(`[Queue] Convertendo: ${job.id}`);
 
-    const conversion = await convertMedia(sourcePath, job.format);
+    const conversion = await convertMedia(
+      sourcePath,
+      job.format,
+      (progress) => {
+        const overallProgress = 50 + Math.floor(progress * 0.49);
+
+        job.progress = Math.max(job.progress, overallProgress);
+      },
+    );
 
     outputPath = conversion.outputPath;
 
@@ -116,8 +130,9 @@ async function processJob(job: ConversionJob): Promise<void> {
       downloadUrl: `/api/converter/download/${conversion.filename}`,
     };
 
+    job.progress = 100
     job.status = "completed";
-
+      
     console.log(`[Queue] Concluída: ${job.id}`);
   } catch (error) {
     job.status = "failed";
@@ -150,17 +165,14 @@ async function processJob(job: ConversionJob): Promise<void> {
 }
 
 export function cleanupExpiredJobs(): void {
-  const expirationTime = getPositiveNumber(
-    process.env.JOB_EXPIRATION_MINUTES,
-    60
-  ) * 60 * 1000;
+  const expirationTime =
+    getPositiveNumber(process.env.JOB_EXPIRATION_MINUTES, 60) * 60 * 1000;
 
   const now = Date.now();
 
   for (const [id, job] of jobs) {
     if (
-      (job.status === "completed" ||
-        job.status === "failed") &&
+      (job.status === "completed" || job.status === "failed") &&
       job.finishedAt !== undefined &&
       now - job.finishedAt >= expirationTime
     ) {
