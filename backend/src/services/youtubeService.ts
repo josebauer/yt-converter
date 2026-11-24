@@ -8,7 +8,7 @@ import type { OutputFormat } from "./converterService.js";
 
 export async function downloadYouTubeMedia(
   url: string,
-  format: OutputFormat
+  format: OutputFormat,
 ): Promise<string> {
   const videoId = extractVideoId(url);
 
@@ -23,36 +23,46 @@ export async function downloadYouTubeMedia(
 
   await mkdir(tempDir, { recursive: true });
 
-  const outputTemplate = path.join(
-    tempDir,
-    "%(id)s.%(ext)s"
-  );
+  const outputTemplate = path.join(tempDir, "%(id)s.%(ext)s");
 
   const args = [
     "--ignore-config",
-    "--encoding", "utf-8",
+    "--encoding",
+    "utf-8",
     "--no-playlist",
     "--no-progress",
     "--no-warnings",
-    "--max-filesize", "200M",
-    "--socket-timeout", "30",
-    "--retries", "2",
-    "-f", format === "mp3"
+    "--max-filesize",
+    "200M",
+    "--socket-timeout",
+    "30",
+    "--retries",
+    "2",
+    "-f",
+    format === "mp3"
       ? "bestaudio/best"
-      : "bestvideo[height<=1080]+bestaudio/best[height<=1080]",
-    "--merge-output-format", "mp4",
-    "--print", "after_move:filepath",
+      : [
+          "bestvideo[height<=1080][vcodec^=avc1]+bestaudio[acodec^=mp4a]",
+          "best[height<=1080][vcodec^=avc1][acodec^=mp4a]",
+          "bestvideo[height<=1080]+bestaudio",
+          "best[height<=1080]",
+        ].join("/"),
+    "--merge-output-format",
+    "mp4",
+    "--print",
+    "after_move:filepath",
     "--no-simulate",
-    "-o", outputTemplate,
+    "-o",
+    outputTemplate,
     "--",
-    videoUrl
+    videoUrl,
   ];
 
   try {
     return await new Promise<string>((resolve, reject) => {
       const ytDlp = spawn("yt-dlp", args, {
         windowsHide: true,
-        timeout: 180000
+        timeout: 180000,
       });
 
       let output = "";
@@ -65,32 +75,25 @@ export async function downloadYouTubeMedia(
       });
 
       ytDlp.stderr.on("data", (data) => {
-        errorOutput = (
-          errorOutput + data.toString()
-        ).slice(-4000);
+        errorOutput = (errorOutput + data.toString()).slice(-4000);
       });
 
       ytDlp.on("error", reject);
 
       ytDlp.on("close", (code) => {
-        const filePath = output
-          .trim()
-          .split(/\r?\n/)
-          .pop();
+        const filePath = output.trim().split(/\r?\n/).pop();
 
         if (code === 0 && filePath) {
           resolve(filePath);
         } else {
-          reject(
-            new Error(`yt-dlp falhou: ${errorOutput}`)
-          );
+          reject(new Error(`yt-dlp falhou: ${errorOutput}`));
         }
       });
     });
   } catch (error) {
     await rm(tempDir, {
       recursive: true,
-      force: true
+      force: true,
     });
 
     throw error;

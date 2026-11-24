@@ -2,6 +2,7 @@ import { spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { mkdir } from "node:fs/promises";
 import path from "node:path";
+import { getMediaCodecs } from "./ffprobeService.js";
 
 export type OutputFormat = "mp3" | "mp4";
 
@@ -23,41 +24,73 @@ export async function convertMedia(
 
   await mkdir(tempDir, { recursive: true });
 
-  const args =
-    format === "mp3"
-      ? [
-          "-hide_banner",
-          "-loglevel",
-          "info",
-          "-nostdin",
-          "-y",
-          "-i",
-          inputUrl,
-          "-vn",
-          "-codec:a",
-          "libmp3lame",
-          "-b:a",
-          "192k",
-          outputPath,
-        ]
-      : [
-          "-hide_banner",
-          "-loglevel",
-          "error",
-          "-nostdin",
-          "-y",
-          "-i",
-          inputUrl,
-          "-c:v",
-          "libx264",
-          "-preset",
-          "veryfast",
-          "-c:a",
-          "aac",
-          "-movflags",
-          "+faststart",
-          outputPath,
-        ];
+  let args: string[];
+
+  if (format === "mp3") {
+    args = [
+      "-hide_banner",
+      "-loglevel",
+      "error",
+      "-nostdin",
+      "-y",
+      "-i",
+      inputUrl,
+      "-vn",
+      "-codec:a",
+      "libmp3lame",
+      "-b:a",
+      "192k",
+      outputPath,
+    ];
+  } else {
+    const codecs = await getMediaCodecs(inputUrl);
+
+    console.log("Codecs originais:", codecs);
+
+    if (!codecs.videoCodec) {
+      throw new Error("O arquivo não possui uma faixa de vídeo.");
+    }
+
+    const copyVideo =
+      codecs.videoCodec === "h264" && codecs.pixelFormat === "yuv420p";
+
+    const copyAudio = codecs.audioCodec === "aac";
+
+    console.log(
+      "Processamento de vídeo:",
+      copyVideo ? "Cópia" : "Recodificação",
+    );
+
+    console.log(
+      "Processamento de áudio:",
+      !codecs.audioCodec ? "Sem áudio" : copyAudio ? "Cópia" : "Recodificação",
+    );
+
+    args = [
+      "-hide_banner",
+      "-loglevel",
+      "error",
+      "-nostdin",
+      "-y",
+      "-i",
+      inputUrl,
+
+      "-map",
+      "0:v:0",
+      "-map",
+      "0:a:0?",
+
+      ...(copyVideo
+        ? ["-c:v", "copy"]
+        : ["-c:v", "libx264", "-preset", "veryfast", "-pix_fmt", "yuv420p"]),
+
+      ...(copyAudio ? ["-c:a", "copy"] : ["-c:a", "aac", "-b:a", "192k"]),
+
+      "-movflags",
+      "+faststart",
+      outputPath,
+    ];
+  }
 
   return new Promise((resolve, reject) => {
     const ffmpeg = spawn("ffmpeg", args, {
