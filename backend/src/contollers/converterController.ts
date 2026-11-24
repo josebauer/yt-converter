@@ -2,22 +2,23 @@ import type { Request, Response } from "express";
 import { converterSchema } from "../schemas/converterSchema.js";
 import { z } from "zod";
 import { getMediaInfo } from "../services/mediaService.js";
-import { convertMedia } from "../services/converterService.js";
 import { getDownloadFile } from "../services/donwloadService.js";
 import { downloadSchema } from "../schemas/converterSchema.js";
-import { downloadYouTubeMedia } from "../services/youtubeService.js";
-import { stat, rm } from "node:fs/promises";
-import path from "node:path";
+import { conversionJobSchema } from "../schemas/conversionJobSchema.js";
 
 import {
-  tryStartConversion,
-  finishConversion,
+  addConversionJob,
+  getConversionJob,
+  getQueuePosition,
+} from "../services/conversionQueueService.js";
+
+import {
   isDurationAllowed,
-  getPositiveNumber
+  getPositiveNumber,
 } from "../services/conversionLimitsService.js";
 
 const mediaInfoSchema = z.object({
-  url: z.url()
+  url: z.url(),
 });
 
 export function validateConverter(req: Request, res: Response) {
@@ -27,7 +28,7 @@ export function validateConverter(req: Request, res: Response) {
     res.status(400).json({
       success: false,
       message: "Dados inválidos",
-      errors: result.error.flatten()
+      errors: result.error.flatten(),
     });
     return;
   }
@@ -35,21 +36,18 @@ export function validateConverter(req: Request, res: Response) {
   res.status(200).json({
     success: true,
     message: "Requisição validada com sucesso",
-    data: result.data
+    data: result.data,
   });
 }
 
-export async function getVideoInfo(
-  req: Request,
-  res: Response
-): Promise<void> {
+export async function getVideoInfo(req: Request, res: Response): Promise<void> {
   const result = mediaInfoSchema.safeParse(req.body);
 
   if (!result.success) {
     res.status(400).json({
       success: false,
       message: "URL inválida.",
-      errors: result.error.flatten()
+      errors: result.error.flatten(),
     });
     return;
   }
@@ -59,66 +57,51 @@ export async function getVideoInfo(
 
     res.status(200).json({
       success: true,
-      data: media
+      data: media,
     });
   } catch (error) {
     console.error("Erro ao consultar vídeo:", error);
 
     if (
       error instanceof Error &&
-      (
-        error.message === "URL do YouTube inválida." ||
-        error.message === "Vídeo não encontrado ou indisponível."
-      )
+      (error.message === "URL do YouTube inválida." ||
+        error.message === "Vídeo não encontrado ou indisponível.")
     ) {
       res.status(400).json({
         success: false,
-        message: error.message
+        message: error.message,
       });
       return;
     }
 
     res.status(502).json({
       success: false,
-      message: "Não foi possível consultar as informações do vídeo."
+      message: "Não foi possível consultar as informações do vídeo.",
     });
   }
 }
 
-export async function convertVideo(
-  req: Request,
-  res: Response
-): Promise<void> {
+export async function convertVideo(req: Request, res: Response): Promise<void> {
   const result = converterSchema.safeParse(req.body);
 
   if (!result.success) {
     res.status(400).json({
       success: false,
       message: "Dados inválidos.",
-      errors: result.error.flatten()
+      errors: result.error.flatten(),
     });
     return;
   }
 
   const { url, format } = result.data;
 
-  if (!tryStartConversion()) {
-    res.status(503).json({
-      success: false,
-      message: "Servidor ocupado. Tente novamente em instantes."
-    });
-    return;
-  }
-
-  let sourcePath: string | undefined;
-
   try {
     const mediaInfo = await getMediaInfo(url);
-    
+
     if (mediaInfo.liveBroadcastContent !== "none") {
       res.status(422).json({
         success: false,
-        message: "Transmissões ao vivo não são permitidas."
+        message: "Transmissões ao vivo não são permitidas.",
       });
       return;
     }
@@ -126,85 +109,56 @@ export async function convertVideo(
     if (!isDurationAllowed(mediaInfo.durationInSeconds)) {
       const maxDuration = getPositiveNumber(
         process.env.MAX_VIDEO_DURATION_MINUTES,
-        20
+        20,
       );
 
       res.status(422).json({
         success: false,
-        message: `O vídeo deve possuir no máximo ${maxDuration} minutos.`
+        message: `O vídeo deve possuir no máximo ${maxDuration} minutos.`,
       });
       return;
     }
 
-    // Baixar mídia original
-    sourcePath = await downloadYouTubeMedia(url, format);
+    const job = addConversionJob(url, format);
 
-    // Validar tamanho da mídia baixada
-    const sourceStats = await stat(sourcePath);
-
-    const maxSize = getPositiveNumber(
-      process.env.MAX_FILE_SIZE_MB,
-      200
-    ) * 1024 * 1024;
-
-    if (sourceStats.size > maxSize) {
-      res.status(422).json({
+    if (!job) {
+      res.status(503).json({
         success: false,
-        message: "O arquivo excede o tamanho máximo permitido."
+        message: "Fila de conversões cheia. Tente novamente mais tarde.",
       });
       return;
     }
 
-    // Converter mídia
-    const conversion = await convertMedia(
-      sourcePath,
-      format
-    );
-
-    res.status(200).json({
+    res.status(202).json({
       success: true,
-      message: "Conversão realizada com sucesso!",
+      message: "Solicitação de conversão aceita.",
       data: {
-        id: conversion.id,
-        filename: conversion.filename,
-        format,
-        downloadUrl:
-          `/api/converter/download/${conversion.filename}`
-      }
+        id: job.id,
+        status: job.status,
+        queuePosition: getQueuePosition(job.id),
+        statusUrl: `/api/converter/status/${job.id}`,
+      },
     });
   } catch (error) {
-    console.error("Erro na conversão:", error);
+    console.error("Erro ao solicitar conversão:", error);
 
     res.status(500).json({
       success: false,
-      message: "Não foi possível realizar a conversão."
+      message: "Não foi possível solicitar a conversão.",
     });
-  } finally {
-    try {
-      if (sourcePath) {
-        await rm(path.dirname(sourcePath), {
-          recursive: true,
-          force: true
-        });
-      }
-    } catch (error) {
-      console.error("Erro ao excluir mídia original:", error);
-    } finally {
-      finishConversion();
-    }
   }
 }
 
 export async function downloadVideo(
   req: Request,
-  res: Response
+  res: Response,
 ): Promise<void> {
   const result = downloadSchema.safeParse(req.params);
 
   if (!result.success) {
     res.status(400).json({
       success: false,
-      message: "Nome de arquivo inválido."
+      message: "Nome de arquivo inválido.",
     });
     return;
   }
@@ -217,7 +171,7 @@ export async function downloadVideo(
     if (!file) {
       res.status(404).json({
         success: false,
-        message: "Arquivo não encontrado."
+        message: "Arquivo não encontrado.",
       });
       return;
     }
@@ -229,7 +183,7 @@ export async function downloadVideo(
         if (!res.headersSent) {
           res.status(500).json({
             success: false,
-            message: "Não foi possível baixar o arquivo."
+            message: "Não foi possível baixar o arquivo.",
           });
         } else {
           res.destroy();
@@ -241,7 +195,51 @@ export async function downloadVideo(
 
     res.status(500).json({
       success: false,
-      message: "Erro interno do servidor."
+      message: "Erro interno do servidor.",
     });
   }
+}
+
+export function getConversionStatus(
+  req: Request,
+  res: Response
+): void {
+  const result = conversionJobSchema.safeParse(
+    req.params
+  );
+
+  if (!result.success) {
+    res.status(400).json({
+      success: false,
+      message: "Identificador inválido."
+    });
+    return;
+  }
+
+  const job = getConversionJob(result.data.id);
+
+  if (!job) {
+    res.status(404).json({
+      success: false,
+      message: "Conversão não encontrada ou expirada."
+    });
+    return;
+  }
+
+  res.setHeader("Cache-Control", "no-store");
+
+  res.status(200).json({
+    success: true,
+    data: {
+      id: job.id,
+      format: job.format,
+      status: job.status,
+      queuePosition: getQueuePosition(job.id),
+      createdAt: job.createdAt,
+      startedAt: job.startedAt,
+      finishedAt: job.finishedAt,
+      result: job.result,
+      error: job.error
+    }
+  });
 }

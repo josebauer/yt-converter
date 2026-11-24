@@ -1,4 +1,5 @@
 import { readdir, stat, unlink, mkdir } from "node:fs/promises";
+import { cleanupExpiredJobs } from "./conversionQueueService.js";
 import path from "node:path";
 
 const tempDir = path.resolve("temp");
@@ -9,9 +10,7 @@ const convertedFilePattern =
 function getMinutes(value: string | undefined, fallback: number) {
   const minutes = Number(value);
 
-  return Number.isFinite(minutes) && minutes > 0
-    ? minutes
-    : fallback;
+  return Number.isFinite(minutes) && minutes > 0 ? minutes : fallback;
 }
 
 let isCleaning = false;
@@ -25,11 +24,10 @@ export async function cleanupExpiredFiles(): Promise<void> {
     await mkdir(tempDir, { recursive: true });
 
     const expirationTime =
-      getMinutes(process.env.FILE_EXPIRATION_MINUTES, 30)
-      * 60 * 1000;
+      getMinutes(process.env.FILE_EXPIRATION_MINUTES, 30) * 60 * 1000;
 
     const files = await readdir(tempDir, {
-      withFileTypes: true
+      withFileTypes: true,
     });
 
     const now = Date.now();
@@ -53,22 +51,15 @@ export async function cleanupExpiredFiles(): Promise<void> {
 
           removedFiles++;
 
-          console.log(
-            `[Cleanup] Arquivo removido: ${file.name}`
-          );
+          console.log(`[Cleanup] Arquivo removido: ${file.name}`);
         }
       } catch (error) {
-        console.error(
-          `[Cleanup] Erro ao processar ${file.name}:`,
-          error
-        );
+        console.error(`[Cleanup] Erro ao processar ${file.name}:`, error);
       }
     }
 
     if (removedFiles > 0) {
-      console.log(
-        `[Cleanup] ${removedFiles} arquivo(s) removido(s).`
-      );
+      console.log(`[Cleanup] ${removedFiles} arquivo(s) removido(s).`);
     }
   } catch (error) {
     console.error("[Cleanup] Erro na limpeza:", error);
@@ -79,14 +70,19 @@ export async function cleanupExpiredFiles(): Promise<void> {
 
 export function startCleanupService() {
   const interval =
-    getMinutes(process.env.CLEANUP_INTERVAL_MINUTES, 5)
-    * 60 * 1000;
+    getMinutes(
+      process.env.CLEANUP_INTERVAL_MINUTES,
+      5
+    ) * 60 * 1000;
 
   console.log("[Cleanup] Serviço de limpeza iniciado.");
 
   void cleanupExpiredFiles();
+  cleanupExpiredJobs();
 
   return setInterval(() => {
     void cleanupExpiredFiles();
+    cleanupExpiredJobs();
   }, interval);
 }
+
