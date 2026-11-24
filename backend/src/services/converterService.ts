@@ -27,6 +27,8 @@ export async function convertMedia(
   const args =
     format === "mp3"
       ? [
+          "-hide_banner",
+          "-loglevel", "error",
           "-nostdin",
           "-y",
           "-i", inputUrl,
@@ -36,6 +38,8 @@ export async function convertMedia(
           outputPath
         ]
       : [
+          "-hide_banner",
+          "-loglevel", "error",
           "-nostdin",
           "-y",
           "-i", inputUrl,
@@ -48,7 +52,8 @@ export async function convertMedia(
 
   return new Promise((resolve, reject) => {
     const ffmpeg = spawn("ffmpeg", args, {
-      windowsHide: true
+      windowsHide: true,
+      timeout: 120000
     });
 
     let errorOutput = "";
