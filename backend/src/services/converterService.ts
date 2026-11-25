@@ -27,8 +27,6 @@ export async function convertMedia(
   const tempDir = path.resolve("temp");
   const outputPath = path.join(tempDir, filename);
 
-  await mkdir(tempDir, { recursive: true });
-
   const codecs = await getMediaCodecs(inputUrl);
   const durationInSeconds = codecs.durationInSeconds;
 
@@ -100,7 +98,9 @@ export async function convertMedia(
 
   args = ["-progress", "pipe:1", "-nostats", "-stats_period", "0.5", ...args];
 
-  lockFile(outputPath);
+  if (!lockFile(outputPath)) {
+    throw new Error("Não foi possível reservar o arquivo de saída.");
+  }
 
   try {
     return await new Promise<ConversionResult>((resolve, reject) => {

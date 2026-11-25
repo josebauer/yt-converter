@@ -1,6 +1,12 @@
 import { readdir, stat, unlink, mkdir, rm } from "node:fs/promises";
-import { cleanupExpiredJobs, expireJobByFilename } from "./conversionQueueService.js";
-import { isFileInUse } from "./fileUsageService.js";
+import {
+  cleanupExpiredJobs,
+  expireJobByFilename,
+} from "./conversionQueueService.js";
+import {
+  tryStartFileDeletion,
+  finishFileDeletion,
+} from "./fileUsageService.js";
 import path from "node:path";
 
 const tempDir = path.resolve("temp");
@@ -48,14 +54,23 @@ export async function cleanupExpiredFiles(): Promise<void> {
         const fileAge = now - fileStats.mtimeMs;
 
         if (fileAge >= expirationTime) {
-          if (isFileInUse(filePath)) {
-            console.log(`[Cleanup] Arquivo em uso, ignorando: ${file.name}`);
+          if (!tryStartFileDeletion(filePath)) {
+            console.log(`[Cleanup] Arquivo ocupado, ignorando: ${file.name}`);
+
             continue;
           }
-          await unlink(filePath)
-          expireJobByFilename(file.name)
-          removedFiles++;
-          console.log(`[Cleanup] Arquivo removido: ${file.name}`);
+
+          try {
+            await unlink(filePath);
+
+            expireJobByFilename(file.name);
+
+            removedFiles++;
+
+            console.log(`[Cleanup] Arquivo removido: ${file.name}`);
+          } finally {
+            finishFileDeletion(filePath);
+          }
         }
       } catch (error) {
         console.error(`[Cleanup] Erro ao processar ${file.name}:`, error);
@@ -93,21 +108,16 @@ export async function cleanupAbandonedSources(): Promise<void> {
   try {
     await rm(sourceDir, {
       recursive: true,
-      force: true
+      force: true,
     });
 
     await mkdir(sourceDir, {
-      recursive: true
+      recursive: true,
     });
 
-    console.log(
-      "[Cleanup] Pasta de mídias temporárias limpa."
-    );
+    console.log("[Cleanup] Pasta de mídias temporárias limpa.");
   } catch (error) {
-    console.error(
-      "[Cleanup] Erro ao limpar mídias abandonadas:",
-      error
-    );
+    console.error("[Cleanup] Erro ao limpar mídias abandonadas:", error);
 
     throw error;
   }

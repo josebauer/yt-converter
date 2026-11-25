@@ -7,7 +7,9 @@ export async function getDownloadFile(filename: string) {
 
   const filePath = path.join(tempDir, filename);
 
-  lockFile(filePath);
+  if (!lockFile(filePath)) {
+    return null;
+  }
 
   try {
     const fileStats = await stat(filePath);
@@ -20,9 +22,8 @@ export async function getDownloadFile(filename: string) {
     return {
       filePath,
       filename,
-      size: fileStats.size
+      size: fileStats.size,
     };
-
   } catch (error) {
     unlockFile(filePath);
 
