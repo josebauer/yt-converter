@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { stat, rm } from "node:fs/promises";
 import { convertMedia } from "./converterService.js";
 import { downloadYouTubeMedia } from "./youtubeService.js";
-import { sanitizeFilename } from "../types/sanitizeFilename.js";
+import { sanitizeFilename } from "../utils/sanitizeFilename.js";
 import path from "node:path";
 
 import {

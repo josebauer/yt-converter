@@ -1,3 +1,22 @@
-/node_modules
+# Dependencies
+node_modules/
+
+# Build
+dist/
+*.tsbuildinfo
+
+# Environment variables
 .env
-/temp
+.env.*
+!.env.example
+
+# Temporary files
+temp/
+
+# Logs
+logs/
+*.log
+
+# Operating system
+.DS_Store
+Thumbs.db
