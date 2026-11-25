@@ -1,5 +1,6 @@
 import { readdir, stat, unlink, mkdir } from "node:fs/promises";
 import { cleanupExpiredJobs } from "./conversionQueueService.js";
+import { isFileInUse } from "./fileUsageService.js";
 import path from "node:path";
 
 const tempDir = path.resolve("temp");
@@ -47,10 +48,12 @@ export async function cleanupExpiredFiles(): Promise<void> {
         const fileAge = now - fileStats.mtimeMs;
 
         if (fileAge >= expirationTime) {
+          if (isFileInUse(filePath)) {
+            console.log(`[Cleanup] Arquivo em uso, ignorando: ${file.name}`);
+            continue;
+          }
           await unlink(filePath);
-
           removedFiles++;
-
           console.log(`[Cleanup] Arquivo removido: ${file.name}`);
         }
       } catch (error) {
@@ -70,10 +73,7 @@ export async function cleanupExpiredFiles(): Promise<void> {
 
 export function startCleanupService() {
   const interval =
-    getMinutes(
-      process.env.CLEANUP_INTERVAL_MINUTES,
-      5
-    ) * 60 * 1000;
+    getMinutes(process.env.CLEANUP_INTERVAL_MINUTES, 5) * 60 * 1000;
 
   console.log("[Cleanup] Serviço de limpeza iniciado.");
 
@@ -85,4 +85,3 @@ export function startCleanupService() {
     cleanupExpiredJobs();
   }, interval);
 }
-

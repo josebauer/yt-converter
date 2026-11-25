@@ -1,9 +1,10 @@
 import { spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { mkdir } from "node:fs/promises";
+import { mkdir, rm } from "node:fs/promises";
 import path from "node:path";
 import { getMediaCodecs } from "./ffprobeService.js";
 import { createLineReader } from "../utils/lineReader.js";
+import { lockFile, unlockFile } from "./fileUsageService.js";
 
 import type { ProgressCallback } from "../types/conversionJob.js";
 
@@ -99,63 +100,80 @@ export async function convertMedia(
 
   args = ["-progress", "pipe:1", "-nostats", "-stats_period", "0.5", ...args];
 
-  return new Promise((resolve, reject) => {
-    const ffmpeg = spawn("ffmpeg", args, {
-      windowsHide: true,
-      timeout: 600000,
+  lockFile(outputPath);
+
+  try {
+    return await new Promise<ConversionResult>((resolve, reject) => {
+      const ffmpeg = spawn("ffmpeg", args, {
+        windowsHide: true,
+        timeout: 600000,
+      });
+
+      let errorOutput = "";
+
+      const readProgress = createLineReader((line) => {
+        if (!line.startsWith("out_time_us=")) {
+          return;
+        }
+
+        if (durationInSeconds <= 0) {
+          return;
+        }
+
+        const microseconds = Number(line.split("=")[1]);
+
+        if (!Number.isFinite(microseconds)) {
+          return;
+        }
+
+        const processedSeconds = microseconds / 1000000;
+
+        const progress = (processedSeconds / durationInSeconds) * 100;
+
+        onProgress?.(Math.min(99, Math.max(0, progress)));
+      });
+
+      ffmpeg.stdout.setEncoding("utf8");
+      ffmpeg.stderr.setEncoding("utf8");
+
+      ffmpeg.stdout.on("data", (data: string) => {
+        readProgress(data);
+      });
+
+      ffmpeg.stderr.on("data", (data: string) => {
+        errorOutput = (errorOutput + data).slice(-4000);
+      });
+
+      ffmpeg.on("error", reject);
+
+      ffmpeg.on("close", (code, signal) => {
+        readProgress("\n");
+
+        if (code === 0) {
+          onProgress?.(100);
+
+          resolve({
+            id,
+            filename,
+            outputPath,
+          });
+        } else {
+          reject(
+            new Error(`FFmpeg falhou (${code}, ${signal}): ${errorOutput}`),
+          );
+        }
+      });
+    });
+  } catch (error) {
+    await rm(outputPath, { force: true }).catch((cleanupError) => {
+      console.error(
+        "[Conversion] Erro ao excluir arquivo parcial:",
+        cleanupError,
+      );
     });
 
-    let errorOutput = "";
-
-    const readProgress = createLineReader((line) => {
-      if (!line.startsWith("out_time_us=")) {
-        return;
-      }
-
-      if (durationInSeconds <= 0) {
-        return;
-      }
-
-      const microseconds = Number(line.split("=")[1]);
-
-      if (!Number.isFinite(microseconds)) {
-        return;
-      }
-
-      const processedSeconds = microseconds / 1000000;
-
-      const progress = (processedSeconds / durationInSeconds) * 100;
-
-      onProgress?.(Math.min(99, Math.max(0, progress)));
-    });
-
-    ffmpeg.stdout.setEncoding("utf8");
-    ffmpeg.stderr.setEncoding("utf8");
-
-    ffmpeg.stdout.on("data", (data: string) => {
-      readProgress(data);
-    });
-
-    ffmpeg.stderr.on("data", (data: string) => {
-      errorOutput = (errorOutput + data).slice(-4000);
-    });
-
-    ffmpeg.on("error", reject);
-
-    ffmpeg.on("close", (code, signal) => {
-      readProgress("\n");
-
-      if (code === 0) {
-        onProgress?.(100);
-
-        resolve({
-          id,
-          filename,
-          outputPath,
-        });
-      } else {
-        reject(new Error(`FFmpeg falhou (${code}, ${signal}): ${errorOutput}`));
-      }
-    });
-  });
+    throw error;
+  } finally {
+    unlockFile(outputPath);
+  }
 }

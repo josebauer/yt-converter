@@ -5,6 +5,7 @@ import { getMediaInfo } from "../services/mediaService.js";
 import { getDownloadFile } from "../services/donwloadService.js";
 import { downloadSchema } from "../schemas/converterSchema.js";
 import { conversionJobSchema } from "../schemas/conversionJobSchema.js";
+import { unlockFile } from "../services/fileUsageService.js";
 
 import {
   addConversionJob,
@@ -153,54 +154,89 @@ export async function convertVideo(req: Request, res: Response): Promise<void> {
 
 export async function downloadVideo(
   req: Request,
-  res: Response,
+  res: Response
 ): Promise<void> {
   const result = downloadSchema.safeParse(req.params);
 
   if (!result.success) {
     res.status(400).json({
       success: false,
-      message: "Nome de arquivo inválido.",
+      message: "Nome de arquivo inválido."
     });
     return;
   }
 
+  const file = await getDownloadFile(
+    result.data.filename
+  );
+
+  if (!file) {
+    res.status(404).json({
+      success: false,
+      message: "Arquivo não encontrado."
+    });
+    return;
+  }
+
+  let released = false;
+
+  const releaseFile = () => {
+    if (released) return;
+
+    released = true;
+
+    unlockFile(file.filePath);
+
+    res.off("finish", releaseFile);
+    res.off("close", releaseFile);
+  };
+
+  res.once("finish", releaseFile);
+  res.once("close", releaseFile);
+
+  if (res.destroyed) {
+    releaseFile();
+    return;
+  }
+
   try {
-    const { filename } = result.data;
+    const downloadFilename =
+      getDownloadFilename(file.filename) ??
+      file.filename;
 
-    const file = await getDownloadFile(filename);
+    res.download(
+      file.filePath,
+      downloadFilename,
+      (error) => {
+        releaseFile();
 
-    if (!file) {
-      res.status(404).json({
-        success: false,
-        message: "Arquivo não encontrado.",
-      });
-      return;
-    }
+        if (error) {
+          console.error("Erro no download:", error);
 
-    const downloadFilename = getDownloadFilename(file.filename) ?? file.filename;
-
-    res.download(file.filePath, downloadFilename, (error) => {
-      if (error) {
-        console.error("Erro no download:", error);
-
-        if (!res.headersSent) {
-          res.status(500).json({
-            success: false,
-            message: "Não foi possível baixar o arquivo.",
-          });
-        } else {
-          res.destroy();
+          if (!res.headersSent && !res.destroyed) {
+            res.status(500).json({
+              success: false,
+              message: "Não foi possível baixar o arquivo."
+            });
+          } else if (!res.destroyed) {
+            res.destroy();
+          }
         }
       }
-    });
+    );
   } catch (error) {
+    releaseFile();
+
     console.error("Erro no download:", error);
 
-    res.status(500).json({
-      success: false,
-      message: "Erro interno do servidor.",
-    });
+    if (!res.headersSent && !res.destroyed) {
+      res.status(500).json({
+        success: false,
+        message: "Não foi possível baixar o arquivo."
+      });
+    } else if (!res.destroyed) {
+      res.destroy();
+    }
   }
 }
 

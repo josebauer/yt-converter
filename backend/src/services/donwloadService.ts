@@ -1,23 +1,31 @@
 import path from "node:path";
 import { stat } from "node:fs/promises";
+import { lockFile, unlockFile } from "./fileUsageService.js";
 
 export async function getDownloadFile(filename: string) {
   const tempDir = path.resolve("temp");
+
   const filePath = path.join(tempDir, filename);
 
-  try {
-    const file = await stat(filePath);
+  lockFile(filePath);
 
-    if (!file.isFile()) {
+  try {
+    const fileStats = await stat(filePath);
+
+    if (!fileStats.isFile()) {
+      unlockFile(filePath);
       return null;
     }
 
     return {
-      filename,
       filePath,
-      size: file.size
+      filename,
+      size: fileStats.size
     };
-  } catch {
+
+  } catch (error) {
+    unlockFile(filePath);
+
     return null;
   }
 }
