@@ -33,11 +33,36 @@ export async function createConversion(
 }
 
 export async function getConversionStatus(
-  id: string
+  id: string,
+  signal?: AbortSignal
 ): Promise<ConversionJob> {
   const response = await api.get<ApiResponse<ConversionJob>>(
-    `/converter/status/${id}`
+    `/converter/status/${id}`,
+    { signal }
   );
 
   return response.data.data;
+}
+
+export function getDownloadUrl(
+  downloadPath: string
+): string {
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL;
+
+  if (!apiUrl) {
+    throw new Error("URL da API não configurada.");
+  }
+
+  const baseUrl = new URL(apiUrl);
+
+  const downloadUrl = new URL(
+    downloadPath,
+    baseUrl.origin
+  );
+
+  if (downloadUrl.origin !== baseUrl.origin) {
+    throw new Error("URL de download inválida.");
+  }
+
+  return downloadUrl.href;
 }
