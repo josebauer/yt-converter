@@ -1,5 +1,5 @@
-import { readdir, stat, unlink, mkdir } from "node:fs/promises";
-import { cleanupExpiredJobs } from "./conversionQueueService.js";
+import { readdir, stat, unlink, mkdir, rm } from "node:fs/promises";
+import { cleanupExpiredJobs, expireJobByFilename } from "./conversionQueueService.js";
 import { isFileInUse } from "./fileUsageService.js";
 import path from "node:path";
 
@@ -52,7 +52,8 @@ export async function cleanupExpiredFiles(): Promise<void> {
             console.log(`[Cleanup] Arquivo em uso, ignorando: ${file.name}`);
             continue;
           }
-          await unlink(filePath);
+          await unlink(filePath)
+          expireJobByFilename(file.name)
           removedFiles++;
           console.log(`[Cleanup] Arquivo removido: ${file.name}`);
         }
@@ -84,4 +85,30 @@ export function startCleanupService() {
     void cleanupExpiredFiles();
     cleanupExpiredJobs();
   }, interval);
+}
+
+export async function cleanupAbandonedSources(): Promise<void> {
+  const sourceDir = path.join(tempDir, "source");
+
+  try {
+    await rm(sourceDir, {
+      recursive: true,
+      force: true
+    });
+
+    await mkdir(sourceDir, {
+      recursive: true
+    });
+
+    console.log(
+      "[Cleanup] Pasta de mídias temporárias limpa."
+    );
+  } catch (error) {
+    console.error(
+      "[Cleanup] Erro ao limpar mídias abandonadas:",
+      error
+    );
+
+    throw error;
+  }
 }

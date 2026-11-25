@@ -6,7 +6,8 @@ export type ConversionStatus =
   | "downloading"
   | "converting"
   | "completed"
-  | "failed";
+  | "failed"
+  | "expired"
 
 export interface ConversionJobResult {
   filename: string;

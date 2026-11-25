@@ -1,11 +1,28 @@
 import "dotenv/config";
 import app from "./app.js";
-import { startCleanupService } from "./services/cleanupService.js";
+import { startCleanupService, cleanupAbandonedSources } from "./services/cleanupService.js";
 
 const PORT = Number(process.env.PORT) || 3333;
 
-app.listen(PORT, () => {
-  console.log(`Servidor rodando na porta ${PORT}`);
+async function startServer(): Promise<void> {
+  try {
+    await cleanupAbandonedSources();
 
-  startCleanupService();
-});
+    app.listen(PORT, () => {
+      console.log(
+        `Servidor rodando na porta ${PORT}`
+      );
+
+      startCleanupService();
+    });
+  } catch (error) {
+    console.error(
+      "Erro ao iniciar o servidor:",
+      error
+    );
+
+    process.exit(1);
+  }
+}
+
+void startServer();

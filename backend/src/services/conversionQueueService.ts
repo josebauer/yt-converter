@@ -172,20 +172,27 @@ async function processJob(job: ConversionJob): Promise<void> {
 }
 
 export function cleanupExpiredJobs(): void {
-  const expirationTime =
-    getPositiveNumber(process.env.JOB_EXPIRATION_MINUTES, 60) * 60 * 1000;
+  const expirationTime = getPositiveNumber(
+    process.env.JOB_EXPIRATION_MINUTES,
+    60
+  ) * 60 * 1000;
 
   const now = Date.now();
 
   for (const [id, job] of jobs) {
     if (
-      (job.status === "completed" || job.status === "failed") &&
+      (
+        job.status === "expired" ||
+        job.status === "failed"
+      ) &&
       job.finishedAt !== undefined &&
       now - job.finishedAt >= expirationTime
     ) {
       jobs.delete(id);
 
-      console.log(`[Queue] Tarefa expirada: ${id}`);
+      console.log(
+        `[Queue] Tarefa removida: ${id}`
+      );
     }
   }
 }
@@ -203,4 +210,20 @@ export function getDownloadFilename(
   }
 
   return undefined;
+}
+
+export function expireJobByFilename(filename: string): void {
+  for (const job of jobs.values()) {
+    if (job.status === "completed" && job.result?.filename === filename) {
+      job.status = "expired";
+
+      delete job.result;
+
+      console.log(
+        `[Queue] Arquivo da tarefa expirado: ${job.id}`
+      );
+
+      return;
+    }
+  }
 }
