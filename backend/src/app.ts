@@ -1,19 +1,20 @@
 import express from "express";
 import cors from "cors";
 import helmet from "helmet";
+import { corsConfig } from "./config/corsConfig.js";
 import converterRoutes from "./routes/converterRoutes.js";
 
 const app = express();
 
-app.use(helmet());
-
 app.disable("x-powerd-by");
 
-app.use(cors({
-  origin: process.env.FRONTEND_URL || "http://localhost:3000"
-}));
+app.use(helmet());
 
-app.use(express.json());
+app.use(cors(corsConfig))
+
+app.use(express.json({
+  limit: "10kb"
+}));
 
 app.use("/api/converter", converterRoutes);
 
