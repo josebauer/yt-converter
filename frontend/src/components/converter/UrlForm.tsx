@@ -14,14 +14,20 @@ import {
   type UrlFormInput,
 } from "@/schemas/converterSchema";
 
+import {
+  MAX_VIDEO_DURATION_MINUTES,
+} from "@/utils/conversionRestrictions";
+
 interface Props {
   onSearch: (url: string) => Promise<void>;
   isLoading: boolean;
+  disabled?: boolean;
 }
 
 export default function UrlForm({
   onSearch,
   isLoading,
+  disabled = false,
 }: Props) {
   const {
     register,
@@ -35,8 +41,11 @@ export default function UrlForm({
   });
 
   const isBusy = isLoading || isSubmitting;
+  const isLocked = isBusy || disabled;
 
   async function onSubmit(data: UrlFormInput) {
+    if (isLocked) return;
+
     await onSearch(data.url);
   }
 
@@ -66,7 +75,7 @@ export default function UrlForm({
             type="url"
             placeholder="Cole o link do YouTube aqui..."
             autoComplete="off"
-            readOnly={isBusy}
+            readOnly={isLocked}
             aria-invalid={!!errors.url}
             aria-describedby={
               errors.url ? "url-error" : "url-hint"
@@ -81,7 +90,7 @@ export default function UrlForm({
 
         <button
           type="submit"
-          disabled={isBusy}
+          disabled={isLocked}
           className="inline-flex h-13 items-center justify-center gap-2 rounded-xl bg-primary-hover px-6 text-sm font-semibold text-white transition-colors hover:bg-red-700 disabled:opacity-60"
         >
           {isBusy ? (
@@ -120,7 +129,7 @@ export default function UrlForm({
         className="mt-4 text-xs leading-relaxed text-muted"
       >
         Suporta links de vídeos do YouTube.
-        Duração máxima de 20 minutos.
+        Duração máxima de {MAX_VIDEO_DURATION_MINUTES} minutos.
       </p>
     </form>
   );

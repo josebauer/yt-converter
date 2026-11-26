@@ -10,9 +10,12 @@ interface Props {
 export default function VideoInfo({
   video,
 }: Props) {
-  const duration = formatDuration(
-    video.durationInSeconds
-  );
+  const duration =
+    video.liveBroadcastContent === "live"
+      ? "Ao vivo"
+      : video.liveBroadcastContent === "upcoming"
+        ? "Agendado"
+        : formatDuration(video.durationInSeconds);
 
   return (
     <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
