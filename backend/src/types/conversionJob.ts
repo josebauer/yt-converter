@@ -13,6 +13,7 @@ export interface ConversionJobResult {
   filename: string;
   downloadFilename: string;
   downloadUrl: string;
+  size: number;
 }
 
 export interface ConversionJob {

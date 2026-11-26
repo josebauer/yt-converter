@@ -135,6 +135,7 @@ async function processJob(job: ConversionJob): Promise<void> {
       filename: conversion.filename,
       downloadFilename,
       downloadUrl: `/api/converter/download/${conversion.filename}`,
+      size: outputStats.size
     };
 
     job.progress = 100;
