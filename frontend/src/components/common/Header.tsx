@@ -2,7 +2,7 @@ import Logo from "./Logo";
 
 export default function Header() {
   return (
-    <header className="sticky top-0 z-50 border-b border-border bg-background/80 backdrop-blur-xl">
+    <header className="sticky top-0 z-50 border-b border-border bg-background/95 sm:bg-background/80 sm:backdrop-blur-xl">
       <div className="mx-auto flex h-18 max-w-6xl items-center justify-between px-5 sm:px-8">
         <Logo />
 

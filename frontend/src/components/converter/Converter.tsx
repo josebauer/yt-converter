@@ -4,17 +4,30 @@ import { useState } from "react";
 
 import { RefreshCw, LoaderCircle, Plus, Wifi } from "lucide-react";
 
+import dynamic from "next/dynamic";
+
 import { useConverter } from "@/hooks/useConverter";
 import { useOnlineStatus } from "@/hooks/useOnlineStatus";
 
 import ErrorMessage from "@/components/common/ErrorMessage";
 import OfflineMessage from "../common/OfflineMessage";
-
 import UrlForm from "./UrlForm";
-import VideoInfo from "./VideoInfo";
-import FormatSelector from "./FormatSelector";
-import ConversionProgress from "./ConversionProgress";
-import DownloadButton from "./DownloadButton";
+
+const VideoInfo = dynamic(
+  () => import("./VideoInfo")
+);
+
+const FormatSelector = dynamic(
+  () => import("./FormatSelector")
+);
+
+const ConversionProgress = dynamic(
+  () => import("./ConversionProgress")
+);
+
+const DownloadButton = dynamic(
+  () => import("./DownloadButton")
+);
 
 export default function Converter() {
   const [formKey, setFormKey] = useState(0);

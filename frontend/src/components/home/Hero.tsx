@@ -11,7 +11,7 @@ export default function Hero() {
       {/* Background glow */}
       <div
         aria-hidden="true"
-        className="pointer-events-none absolute top-0 left-1/2 -z-10 h-100 w-full max-w-200 -translate-x-1/2 rounded-full bg-primary/8 blur-[120px]"
+        className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-100 bg-[radial-gradient(ellipse_at_top,rgba(239,68,68,0.08),transparent_70%)]"
       />
 
       <div className="mx-auto max-w-3xl text-center">
