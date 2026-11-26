@@ -17,6 +17,8 @@ import {
   clearStoredConversion,
 } from "@/services/conversionStorageService";
 
+import { useOnlineStatus } from "./useOnlineStatus";
+
 import type { MediaInfo, OutputFormat, ConversionJob } from "@/types/converter";
 
 const POLLING_INTERVAL = 2000;
@@ -44,6 +46,8 @@ export function useConverter() {
 
   const [isRestoring, setIsRestoring] = useState(true);
 
+  const isOnline = useOnlineStatus();
+
   const isProcessing =
     job?.status === "queued" ||
     job?.status === "downloading" ||
@@ -55,7 +59,7 @@ export function useConverter() {
   const restriction = video ? getConversionRestriction(video) : null;
 
   async function searchVideo(url: string) {
-    if (isBusy) return;
+    if (isBusy || !isOnline) return;
 
     clearStoredConversion();
 
@@ -79,7 +83,7 @@ export function useConverter() {
   }
 
   async function startConversion() {
-    if (!video || isBusy) return;
+    if (!video || isBusy || !isOnline) return;
 
     const restriction = getConversionRestriction(video);
 
@@ -155,7 +159,7 @@ export function useConverter() {
   }, [video, job, isRestoring]);
 
   useEffect(() => {
-    if (!jobId) return;
+    if (!jobId || !isOnline) return;
 
     const controller = new AbortController();
 
@@ -229,7 +233,7 @@ export function useConverter() {
 
       clearTimeout(timeout);
     };
-  }, [jobId, pollingAttempt]);
+  }, [jobId, pollingAttempt, isOnline]);
 
   function retryPolling() {
     if (!jobId) return;
@@ -263,6 +267,17 @@ export function useConverter() {
     setPollingError(null);
   }
 
+  function abandonConversion() {
+    if (isLoadingInfo || isCreatingConversion) return;
+
+    clearStoredConversion();
+
+    setJobId(null);
+    setJob(null);
+    setError(null);
+    setPollingError(null);
+  }
+
   return {
     video,
     format,
@@ -281,5 +296,6 @@ export function useConverter() {
     retryPolling,
     resetConversion,
     reset,
+    abandonConversion
   };
 }

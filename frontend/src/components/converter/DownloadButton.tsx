@@ -7,6 +7,8 @@ import {
   getDownloadUrl,
 } from "@/services/converterService";
 
+import { formatFileSize } from "@/utils/formatFileSize";
+
 import type {
   ConversionResult,
   OutputFormat,
@@ -44,6 +46,10 @@ export default function DownloadButton({
             className="mt-1 truncate text-sm font-medium"
           >
             {result.downloadFilename}
+          </p>
+          
+          <p className="mt-1 text-xs text-muted">
+            {format.toUpperCase()} · {formatFileSize(result.size)}
           </p>
         </div>
       </div>

@@ -2,16 +2,13 @@
 
 import { useState } from "react";
 
-import {
-  RefreshCw,
-  LoaderCircle,
-  Plus,
-  Wifi,
-} from "lucide-react";
+import { RefreshCw, LoaderCircle, Plus, Wifi } from "lucide-react";
 
 import { useConverter } from "@/hooks/useConverter";
+import { useOnlineStatus } from "@/hooks/useOnlineStatus";
 
 import ErrorMessage from "@/components/common/ErrorMessage";
+import OfflineMessage from "../common/OfflineMessage";
 
 import UrlForm from "./UrlForm";
 import VideoInfo from "./VideoInfo";
@@ -21,6 +18,7 @@ import DownloadButton from "./DownloadButton";
 
 export default function Converter() {
   const [formKey, setFormKey] = useState(0);
+  const isOnline = useOnlineStatus()
 
   const {
     video,
@@ -40,6 +38,7 @@ export default function Converter() {
     retryPolling,
     resetConversion,
     reset,
+    abandonConversion
   } = useConverter();
 
   function handleReset() {
@@ -49,10 +48,16 @@ export default function Converter() {
 
     setFormKey((previous) => previous + 1);
 
+    const prefersReducedMotion = window.matchMedia(
+      "(prefers-reduced-motion: reduce)"
+    ).matches;
+
     window.scrollTo({
       top: 0,
-      behavior: "smooth"
-    })
+      behavior: prefersReducedMotion
+        ? "instant"
+        : "smooth",
+    });
   }
 
 
@@ -82,10 +87,17 @@ export default function Converter() {
         onSearch={searchVideo}
         isLoading={isLoadingInfo}
         initialUrl={video?.url ?? ""}
+        autoFocus={formKey > 0}
         disabled={
-          isCreatingConversion || isProcessing
+          !isOnline || isCreatingConversion || isProcessing
         }
       />
+
+      {!isOnline && (
+        <div className="mt-5">
+          <OfflineMessage />
+        </div>
+      )}
 
       {error && (
         <div className="mt-5">
@@ -112,7 +124,7 @@ export default function Converter() {
                   <button
                     type="button"
                     onClick={startConversion}
-                    disabled={isBusy}
+                    disabled={isBusy || !isOnline}
                     className="inline-flex h-13 w-full items-center justify-center gap-2 rounded-xl bg-primary-hover px-6 text-sm font-semibold text-white transition-colors hover:bg-red-700 disabled:opacity-60"
                   >
                     {isCreatingConversion ? (
@@ -152,14 +164,30 @@ export default function Converter() {
                   <button
                     type="button"
                     onClick={retryPolling}
-                    className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl border border-border text-sm font-medium transition-colors hover:bg-background"
+                    disabled={!isOnline}
+                    className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl border border-border text-sm font-medium transition-colors hover:bg-background disabled:opacity-50"
                   >
                     <Wifi
                       size={18}
                       aria-hidden="true"
                     />
-
                     Reconectar
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const confirmed = window.confirm(
+                        "Deseja abandonar o acompanhamento desta conversão? O processamento poderá continuar no servidor."
+                      );
+
+                      if (confirmed) {
+                        abandonConversion();
+                      }
+                    }}
+                    className="w-full py-2 text-sm text-muted transition-colors hover:text-error"
+                  >
+                    Abandonar acompanhamento
                   </button>
                 </div>
               )}

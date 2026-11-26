@@ -1,12 +1,15 @@
 "use client";
 
-import { useForm } from "react-hook-form";
+import { useState } from "react";
+import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 
 import {
   Link2,
   Search,
   LoaderCircle,
+  ClipboardPaste,
+  X,
 } from "lucide-react";
 
 import {
@@ -23,6 +26,7 @@ interface Props {
   isLoading: boolean;
   disabled?: boolean;
   initialUrl?: string;
+  autoFocus?: boolean;
 }
 
 export default function UrlForm({
@@ -30,10 +34,18 @@ export default function UrlForm({
   isLoading,
   disabled = false,
   initialUrl = "",
+  autoFocus = false,
 }: Props) {
+  const [clipboardError, setClipboardError] =
+    useState<string | null>(null);
+
   const {
     register,
     handleSubmit,
+    setValue,
+    setFocus,
+    clearErrors,
+    control,
     formState: { errors, isSubmitting },
   } = useForm<UrlFormInput>({
     resolver: zodResolver(urlSchema),
@@ -42,19 +54,69 @@ export default function UrlForm({
     },
   });
 
+  const url = useWatch({
+    control,
+    name: "url",
+  });
+
   const isBusy = isLoading || isSubmitting;
   const isLocked = isBusy || disabled;
 
   async function onSubmit(data: UrlFormInput) {
     if (isLocked) return;
 
+    setClipboardError(null);
+
     await onSearch(data.url);
+  }
+
+  async function handlePaste() {
+    if (isLocked) return;
+
+    setClipboardError(null);
+
+    try {
+      const text = await navigator.clipboard.readText();
+
+      if (!text.trim()) {
+        setClipboardError(
+          "A área de transferência está vazia."
+        );
+
+        return;
+      }
+
+      setValue("url", text.trim(), {
+        shouldDirty: true,
+        shouldValidate: true,
+      });
+
+      setFocus("url");
+    } catch {
+      setClipboardError(
+        "Não foi possível acessar a área de transferência. Cole o link manualmente."
+      );
+    }
+  }
+
+  function handleClear() {
+    if (isLocked) return;
+
+    setValue("url", "", {
+      shouldDirty: true,
+      shouldValidate: false,
+    });
+
+    clearErrors("url");
+    setClipboardError(null);
+    setFocus("url");
   }
 
   return (
     <form
       onSubmit={handleSubmit(onSubmit)}
       noValidate
+      aria-busy={isBusy}
     >
       <label
         htmlFor="video-url"
@@ -72,21 +134,62 @@ export default function UrlForm({
           />
 
           <input
-            {...register("url")}
+            {...register("url", {
+              onChange: () => setClipboardError(null),
+            })}
             id="video-url"
             type="url"
+            autoFocus={autoFocus}
+            inputMode="url"
             placeholder="Cole o link do YouTube aqui..."
             autoComplete="off"
+            autoCapitalize="none"
+            spellCheck={false}
             readOnly={isLocked}
             aria-invalid={!!errors.url}
             aria-describedby={
-              errors.url ? "url-error" : "url-hint"
+              errors.url
+                ? "url-hint url-error"
+                : "url-hint"
             }
-            className={`h-13 w-full rounded-xl border bg-background pr-4 pl-12 text-sm text-foreground transition-colors outline-none placeholder:text-muted/70 focus:ring-2 focus:ring-primary/20 ${errors.url
+            className={`h-13 w-full rounded-xl border bg-background pr-24 pl-12 text-sm text-foreground transition-colors outline-none placeholder:text-muted/70 focus:ring-2 focus:ring-primary/20 ${
+              errors.url
                 ? "border-error"
                 : "border-border focus:border-primary"
-              }`}
+            }`}
           />
+
+          <div className="absolute top-1/2 right-2 flex -translate-y-1/2 items-center gap-1">
+            {url && (
+              <button
+                type="button"
+                onClick={handleClear}
+                disabled={isLocked}
+                title="Limpar URL"
+                aria-label="Limpar URL"
+                className="flex size-9 items-center justify-center rounded-lg text-muted transition-colors hover:bg-surface hover:text-foreground disabled:opacity-40"
+              >
+                <X
+                  size={18}
+                  aria-hidden="true"
+                />
+              </button>
+            )}
+
+            <button
+              type="button"
+              onClick={handlePaste}
+              disabled={isLocked}
+              title="Colar URL"
+              aria-label="Colar URL da área de transferência"
+              className="flex size-9 items-center justify-center rounded-lg text-muted transition-colors hover:bg-surface hover:text-foreground disabled:opacity-40"
+            >
+              <ClipboardPaste
+                size={18}
+                aria-hidden="true"
+              />
+            </button>
+          </div>
         </div>
 
         <button
@@ -98,9 +201,10 @@ export default function UrlForm({
             <>
               <LoaderCircle
                 size={18}
-                className="animate-spin"
+                className="motion-safe:animate-spin"
                 aria-hidden="true"
               />
+
               Buscando...
             </>
           ) : (
@@ -109,6 +213,7 @@ export default function UrlForm({
                 size={18}
                 aria-hidden="true"
               />
+
               Buscar vídeo
             </>
           )}
@@ -122,6 +227,15 @@ export default function UrlForm({
           className="mt-2 text-sm text-error"
         >
           {errors.url.message}
+        </p>
+      )}
+
+      {clipboardError && (
+        <p
+          role="alert"
+          className="mt-2 text-xs text-warning"
+        >
+          {clipboardError}
         </p>
       )}
 

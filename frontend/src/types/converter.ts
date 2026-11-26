@@ -30,6 +30,7 @@ export interface ConversionResult {
   filename: string;
   downloadFilename: string;
   downloadUrl: string;
+  size: number;
 }
 
 export interface ConversionJob {
