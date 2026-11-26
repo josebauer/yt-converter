@@ -23,6 +23,7 @@ import {
 
 interface Props {
   onSearch: (url: string) => Promise<void>;
+  onUrlChange?: () => void;
   isLoading: boolean;
   disabled?: boolean;
   initialUrl?: string;
@@ -31,6 +32,7 @@ interface Props {
 
 export default function UrlForm({
   onSearch,
+  onUrlChange,
   isLoading,
   disabled = false,
   initialUrl = "",
@@ -91,6 +93,8 @@ export default function UrlForm({
         shouldValidate: true,
       });
 
+      onUrlChange?.()
+
       setFocus("url");
     } catch {
       setClipboardError(
@@ -106,6 +110,8 @@ export default function UrlForm({
       shouldDirty: true,
       shouldValidate: false,
     });
+
+    onUrlChange?.()
 
     clearErrors("url");
     setClipboardError(null);
@@ -135,7 +141,10 @@ export default function UrlForm({
 
           <input
             {...register("url", {
-              onChange: () => setClipboardError(null),
+              onChange: () => {
+                setClipboardError(null);
+                onUrlChange?.();
+              },
             })}
             id="video-url"
             type="url"

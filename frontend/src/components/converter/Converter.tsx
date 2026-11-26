@@ -38,7 +38,8 @@ export default function Converter() {
     retryPolling,
     resetConversion,
     reset,
-    abandonConversion
+    abandonConversion,
+    clearVideo
   } = useConverter();
 
   function handleReset() {
@@ -85,6 +86,7 @@ export default function Converter() {
       <UrlForm
         key={formKey}
         onSearch={searchVideo}
+        onUrlChange={clearVideo}
         isLoading={isLoadingInfo}
         initialUrl={video?.url ?? ""}
         autoFocus={formKey > 0}

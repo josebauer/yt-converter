@@ -278,6 +278,19 @@ export function useConverter() {
     setPollingError(null);
   }
 
+  function clearVideo() {
+    if (isBusy) return;
+
+    clearStoredConversion();
+
+    setVideo(null);
+    setJob(null);
+    setJobId(null);
+    setFormat("mp3");
+    setError(null);
+    setPollingError(null);
+  }
+
   return {
     video,
     format,
@@ -296,6 +309,7 @@ export function useConverter() {
     retryPolling,
     resetConversion,
     reset,
-    abandonConversion
+    abandonConversion,
+    clearVideo
   };
 }
