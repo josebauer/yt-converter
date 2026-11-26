@@ -1,0 +1,17 @@
+
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  viewBox="0 0 64 64"
+>
+  <rect
+    width="64"
+    height="64"
+    rx="17"
+    fill="#EF4444"
+  />
+
+  <path
+    d="M25 17.5Q22 16 22 20V44Q22 48 25 46.5L45 34.5Q49 32 45 29.5Z"
+    fill="#FFFFFF"
+  />
+</svg>

@@ -1,5 +1,6 @@
 
 import type { Metadata } from "next";
+import { siteConfig } from "@/config/siteConfig";
 import { Geist, Geist_Mono } from "next/font/google";
 
 import Header from "@/components/common/Header";
@@ -18,13 +19,49 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL(siteConfig.url),
+
   title: {
-    default: "YT Converter - Conversor MP3 e MP4",
-    template: "%s | YT Converter",
+    default: siteConfig.title,
+    template: `%s | ${siteConfig.name}`,
   },
-  description:
-    "Converta conteúdos autorizados do YouTube em MP3 ou MP4 de forma simples e prática.",
-  applicationName: "YT Converter",
+
+  description: siteConfig.description,
+
+  applicationName: siteConfig.name,
+
+  keywords: [...siteConfig.keywords],
+
+  category: "technology",
+
+  alternates: {
+    canonical: "/",
+  },
+
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      "max-image-preview": "large",
+    },
+  },
+
+  openGraph: {
+    type: "website",
+    locale: siteConfig.locale,
+    url: siteConfig.url,
+    siteName: siteConfig.name,
+    title: siteConfig.title,
+    description: siteConfig.description,
+  },
+
+  twitter: {
+    card: "summary_large_image",
+    title: siteConfig.title,
+    description: siteConfig.description,
+  },
 };
 
 export default function RootLayout({
