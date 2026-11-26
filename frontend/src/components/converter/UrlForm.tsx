@@ -22,12 +22,14 @@ interface Props {
   onSearch: (url: string) => Promise<void>;
   isLoading: boolean;
   disabled?: boolean;
+  initialUrl?: string;
 }
 
 export default function UrlForm({
   onSearch,
   isLoading,
   disabled = false,
+  initialUrl = "",
 }: Props) {
   const {
     register,
@@ -36,7 +38,7 @@ export default function UrlForm({
   } = useForm<UrlFormInput>({
     resolver: zodResolver(urlSchema),
     defaultValues: {
-      url: "",
+      url: initialUrl,
     },
   });
 
@@ -80,11 +82,10 @@ export default function UrlForm({
             aria-describedby={
               errors.url ? "url-error" : "url-hint"
             }
-            className={`h-13 w-full rounded-xl border bg-background pr-4 pl-12 text-sm text-foreground transition-colors outline-none placeholder:text-muted/70 focus:ring-2 focus:ring-primary/20 ${
-              errors.url
+            className={`h-13 w-full rounded-xl border bg-background pr-4 pl-12 text-sm text-foreground transition-colors outline-none placeholder:text-muted/70 focus:ring-2 focus:ring-primary/20 ${errors.url
                 ? "border-error"
                 : "border-border focus:border-primary"
-            }`}
+              }`}
           />
         </div>
 

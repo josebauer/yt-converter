@@ -33,6 +33,7 @@ export default function Converter() {
     isLoadingInfo,
     isCreatingConversion,
     isProcessing,
+    isRestoring,
     isBusy,
     searchVideo,
     startConversion,
@@ -54,12 +55,33 @@ export default function Converter() {
     })
   }
 
+
+  if (isRestoring) {
+    return (
+      <div
+        role="status"
+        className="flex min-h-40 items-center justify-center rounded-2xl border border-border bg-surface p-7"
+      >
+        <div className="flex items-center gap-3 text-sm text-muted">
+          <LoaderCircle
+            size={22}
+            className="motion-safe:animate-spin text-primary"
+            aria-hidden="true"
+          />
+
+          Carregando conversor...
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="rounded-2xl border border-border bg-surface p-5 text-left shadow-2xl shadow-black/20 sm:p-7">
       <UrlForm
         key={formKey}
         onSearch={searchVideo}
         isLoading={isLoadingInfo}
+        initialUrl={video?.url ?? ""}
         disabled={
           isCreatingConversion || isProcessing
         }

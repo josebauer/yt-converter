@@ -11,6 +11,11 @@ import {
 
 import { getApiError } from "@/utils/getApiError";
 import { getConversionRestriction } from "@/utils/conversionRestrictions";
+import {
+  saveConversion,
+  getStoredConversion,
+  clearStoredConversion,
+} from "@/services/conversionStorageService";
 
 import type { MediaInfo, OutputFormat, ConversionJob } from "@/types/converter";
 
@@ -37,17 +42,22 @@ export function useConverter() {
 
   const [pollingAttempt, setPollingAttempt] = useState(0);
 
+  const [isRestoring, setIsRestoring] = useState(true);
+
   const isProcessing =
     job?.status === "queued" ||
     job?.status === "downloading" ||
     job?.status === "converting";
 
-  const isBusy = isLoadingInfo || isCreatingConversion || isProcessing;
+  const isBusy =
+    isLoadingInfo || isCreatingConversion || isProcessing || isRestoring;
 
   const restriction = video ? getConversionRestriction(video) : null;
 
   async function searchVideo(url: string) {
     if (isBusy) return;
+
+    clearStoredConversion();
 
     setIsLoadingInfo(true);
     setError(null);
@@ -77,7 +87,7 @@ export function useConverter() {
       setError(restriction);
       return;
     }
-
+    clearStoredConversion();
     setIsCreatingConversion(true);
     setError(null);
     setPollingError(null);
@@ -106,6 +116,43 @@ export function useConverter() {
       setIsCreatingConversion(false);
     }
   }
+
+  useEffect(() => {
+    const stored = getStoredConversion();
+
+    // A restauração do sessionStorage precisa ocorrer
+    // após a montagem do componente no navegador.
+    /* eslint-disable react-hooks/set-state-in-effect */
+
+    if (stored) {
+      setVideo(stored.video);
+      setFormat(stored.format);
+      setJob(stored.job);
+      setJobId(stored.job.id);
+    }
+
+    setIsRestoring(false);
+
+    /* eslint-enable react-hooks/set-state-in-effect */
+  }, []);
+
+  useEffect(() => {
+    if (isRestoring) return;
+
+    if (!video || !job) return;
+
+    if (job.status === "failed" || job.status === "expired") {
+      clearStoredConversion();
+
+      return;
+    }
+
+    saveConversion({
+      video,
+      format: job.format,
+      job,
+    });
+  }, [video, job, isRestoring]);
 
   useEffect(() => {
     if (!jobId) return;
@@ -195,6 +242,8 @@ export function useConverter() {
   function resetConversion() {
     if (isBusy) return;
 
+    clearStoredConversion();
+
     setJob(null);
     setJobId(null);
     setError(null);
@@ -203,6 +252,8 @@ export function useConverter() {
 
   function reset() {
     if (isBusy) return;
+
+    clearStoredConversion();
 
     setVideo(null);
     setFormat("mp3");
@@ -223,6 +274,7 @@ export function useConverter() {
     isLoadingInfo,
     isCreatingConversion,
     isProcessing,
+    isRestoring,
     isBusy,
     searchVideo,
     startConversion,
