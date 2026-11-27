@@ -34,6 +34,8 @@ export async function downloadYouTubeMedia(
     "--ignore-config",
     "--encoding",
     "utf-8",
+    "--js-runtimes",
+    "node",
     "--no-playlist",
     "--progress",
     "--newline",
